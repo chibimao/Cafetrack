@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeTrack - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.22.1/jquery.validate.min.js" integrity="sha512-qu7dMuIm2f0KcKZ3BOoP4c+Hn+r4E8PbD2Ro4rmKsOyheCxcwhzQpf6SojA76dn+owqfANzfTFUTkGA+HpHjOA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="split-page">
+        <div class="split-left">
+            <div class="brand-side">
+                <h1 class="brand-title">CafeTrack</h1>
+                <img class="brand-illustration" src="Shops-re-opening-soon-amico.svg" alt="Shops Re-opening">
+            </div>
+        </div>
+
+        <div class="split-right">
+            <div class="form-card">
+                <div class="form-header">
+                    <h2 class="form-brand">Merrylane Cafe</h2>
+                    <h1 class="form-page-title">Login</h1>
+                </div>
+                <form id="loginForm" action="dashboard.html" method="post">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" placeholder="Username">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Password">
+                    </div>
+
+                    <input type="submit" class="btn-submit" value="Login">
+                </form>
+
+                <div class="link">
+                    <p>Don't have an account? <a href="register.html">Register here</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            var failedAttempts = 0;
+            var isLocked = false;
+            var lockTimer = null;
+
+            function showInvalidError() {
+                var validator = $("#loginForm").validate();
+                validator.showErrors({
+                    password: "Invalid username or password."
+                });
+                var $errorLabel = $("#password").next("label.error");
+                if ($errorLabel.length === 0) {
+                    $errorLabel = $("<label for='password' class='error'></label>").insertAfter("#password");
+                }
+                $errorLabel.text("Invalid username or password.").show();
+            }
+
+            function updateLockUI() {
+                var lockUntil = parseInt(localStorage.getItem("loginLockUntil") || "0", 10);
+                var now = Date.now();
+
+                if (lockUntil > now) {
+                    isLocked = true;
+                    failedAttempts = parseInt(localStorage.getItem("loginFailedAttempts") || "3", 10);
+                    $("#username, #password, .btn-submit").prop("disabled", true);
+                    var totalSeconds = Math.ceil((lockUntil - now) / 1000);
+                    showLockCountdown(totalSeconds);
+                    startCountdown(lockUntil);
+                }
+            }
+
+            function showLockCountdown(seconds) {
+                var mins = Math.floor(seconds / 60);
+                var secs = seconds % 60;
+                var validator = $("#loginForm").validate();
+                validator.showErrors({
+                    password: "Too many attempts. Try again in " + mins + ":" + (secs < 10 ? "0" : "") + secs
+                });
+                var $errorLabel = $("#password").next("label.error");
+                if ($errorLabel.length === 0) {
+                    $errorLabel = $("<label for='password' class='error'></label>").insertAfter("#password");
+                }
+                $errorLabel.text("Too many attempts. Try again in " + mins + ":" + (secs < 10 ? "0" : "") + secs).show();
+            }
+
+            function startCountdown(lockUntil) {
+                if (lockTimer) clearInterval(lockTimer);
+                lockTimer = setInterval(function(){
+                    var now = Date.now();
+                    var remaining = Math.ceil((lockUntil - now) / 1000);
+                    if (remaining <= 0) {
+                        clearInterval(lockTimer);
+                        lockTimer = null;
+                        isLocked = false;
+                        $("#username, #password, .btn-submit").prop("disabled", false);
+                        var validator = $("#loginForm").validate();
+                        validator.resetForm();
+                        $("#password").next("label.error").remove();
+                    } else {
+                        showLockCountdown(remaining);
+                    }
+                }, 1000);
+            }
+
+            updateLockUI();
+
+            $("#loginForm").validate({
+                rules:{
+                    username:{
+                        required: true,
+                        minlength: 3,
+                        maxlength: 20
+                    },
+                    password:{
+                        required: true,
+                        minlength: 6
+                    }
+                },
+                messages:{
+                    username:{
+                        required: "Please enter your username",
+                        minlength: "Username must be at least 3 characters",
+                        maxlength: "Username cannot exceed 20 characters"
+                    },
+                    password:{
+                        required: "Please enter your password",
+                        minlength: "Password must be at least 6 characters"
+                    }
+                },
+                errorPlacement: function(error, element) {
+                    error.insertAfter(element);
+                },
+                submitHandler: function(form) {
+                    if (isLocked) return false;
+
+                    var username = $("#username").val();
+                    var password = $("#password").val();
+
+                    if (username === "maoadmin" && password === "Admin12345") {
+                        failedAttempts = 0;
+                        localStorage.removeItem("loginFailedAttempts");
+                        localStorage.removeItem("loginLockUntil");
+                        if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
+                        window.location.href = "dashboard.html";
+                    } else {
+                        $("#password").val("");
+                        failedAttempts++;
+                        localStorage.setItem("loginFailedAttempts", failedAttempts.toString());
+
+                        if (failedAttempts >= 3) {
+                            var extraFails = failedAttempts - 3;
+                            var lockMinutes = 1 + extraFails;
+                            var lockUntil = Date.now() + (lockMinutes * 60 * 1000);
+                            localStorage.setItem("loginLockUntil", lockUntil.toString());
+                            isLocked = true;
+                            $("#username, #password, .btn-submit").prop("disabled", true);
+                            startCountdown(lockUntil);
+                        } else {
+                            showInvalidError();
+                        }
+                    }
+                    return false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
